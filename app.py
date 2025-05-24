@@ -7,6 +7,10 @@ import json
 import os
 from io import BytesIO
 import base64
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Set page config for better mobile experience
 st.set_page_config(
@@ -23,25 +27,37 @@ def load_model():
         model_path = 'model/best_model.pkl'
         if not os.path.exists(model_path):
             st.error("❌ Model file not found! Please ensure the model file exists in the model/ directory.")
+            logging.error(f"Model file not found at {os.path.abspath(model_path)}")
             return None
+        logging.info(f"Loading model from {os.path.abspath(model_path)}")
         return joblib.load(model_path)
     except Exception as e:
         st.error(f"❌ Error loading model: {str(e)}")
+        logging.exception("Error loading model")
         return None
 
 @st.cache_data
 def load_class_dict():
     try:
-        with open('class_dictionary.json', 'r') as f:
+        class_dict_path = 'class_dictionary.json'
+        if not os.path.exists(class_dict_path):
+            st.error("❌ Class dictionary file not found! Please ensure class_dictionary.json exists in the project directory.")
+            logging.error(f"Class dictionary not found at {os.path.abspath(class_dict_path)}")
+            return {}
+            
+        with open(class_dict_path, 'r') as f:
             class_dict = json.load(f)
         # Create reverse mapping from index to class name with proper formatting
         return {v: k.replace('_', ' ').title() for k, v in class_dict.items()}
     except FileNotFoundError:
         st.error("❌ Class dictionary file not found! Please ensure class_dictionary.json exists in the project directory.")
+        logging.error(f"Class dictionary not found at {os.path.abspath('class_dictionary.json')}")
     except json.JSONDecodeError:
         st.error("❌ Invalid JSON format in class dictionary file!")
+        logging.error("Invalid JSON format in class dictionary file")
     except Exception as e:
         st.error(f"❌ Error loading class dictionary: {str(e)}")
+        logging.exception("Error loading class dictionary")
     return {}
 
 def preprocess_image(image):
@@ -62,19 +78,25 @@ def preprocess_image(image):
             else:
                 img_array = image
         
+        # Log image shape for debugging
+        logging.info(f"Original image shape: {img_array.shape}")
+        
         # Resize to 100x100 (adjust based on your model's expected input)
         img_resized = cv2.resize(img_array, (100, 100))
+        logging.info(f"Resized image shape: {img_resized.shape}")
         
         # Normalize pixel values to [0, 1]
         img_normalized = img_resized / 255.0
         
         # Flatten the image to 1D array (100*100 = 10000 features)
         img_flattened = img_normalized.reshape(1, -1)
+        logging.info(f"Flattened image shape: {img_flattened.shape}")
         
         return img_flattened
     except Exception as e:
         st.error(f"❌ Error preprocessing image: {str(e)}")
         st.error(f"Image shape: {image.shape if hasattr(image, 'shape') else 'N/A'}")
+        logging.exception("Error preprocessing image")
         return None
 
 def get_image_download_link(img, filename="image.png", text="Download sample image"):
@@ -85,7 +107,23 @@ def get_image_download_link(img, filename="image.png", text="Download sample ima
     href = f'<a href="data:file/png;base64,{img_str}" download="{filename}">{text}</a>'
     return href
 
+def ensure_directories():
+    """Ensure all required directories exist"""
+    required_dirs = ['model', 'samples']
+    for directory in required_dirs:
+        if not os.path.exists(directory):
+            try:
+                os.makedirs(directory)
+                logging.info(f"Created directory: {directory}")
+                st.info(f"Created missing directory: {directory}")
+            except Exception as e:
+                logging.error(f"Failed to create directory {directory}: {e}")
+                st.error(f"Failed to create directory {directory}: {e}")
+
 def main():
+    # Ensure all required directories exist
+    ensure_directories()
+    
     # Custom CSS for better styling
     st.markdown("""
     <style>
@@ -146,7 +184,7 @@ def main():
     
     # Add a sample image section for testing
     st.markdown("### 🧪 Try with a sample image")
-    sample_options = ["Select a sample", "Roger Federer", "Lionel Messi", "Serena Williams"]
+    sample_options = ["Select a sample", "Roger Federer", "Lionel Messi", "Serena Williams", "Maria Sharapova", "Morgan"]
     sample_choice = st.selectbox("Choose a sample image to test:", sample_options, index=0)
     
     uploaded_file = None
@@ -155,18 +193,29 @@ def main():
     if sample_choice != "Select a sample":
         sample_name = sample_choice.lower().replace(' ', '_')
         sample_path = f"samples/{sample_name}.jpg"
-        try:
-            sample_img = Image.open(sample_path)
-            st.image(sample_img, caption=f"Sample: {sample_choice}", use_column_width=True)
-            
-            # Convert PIL Image to file-like object for consistency with file_uploader
-            img_byte_arr = BytesIO()
-            sample_img.save(img_byte_arr, format='PNG')
-            img_byte_arr.seek(0)
-            uploaded_file = BytesIO(img_byte_arr.read())
-            uploaded_file.name = f"sample_{sample_name}.png"
-        except Exception as e:
-            st.warning(f"Could not load sample image: {str(e)}")
+        
+        # Check if samples directory exists
+        if not os.path.exists('samples'):
+            st.warning("⚠️ Samples directory not found. Please upload your own image instead.")
+            logging.warning("Samples directory not found")
+        # Check if specific sample exists
+        elif not os.path.exists(sample_path):
+            st.warning(f"⚠️ Sample image for {sample_choice} not found. Please upload your own image instead.")
+            logging.warning(f"Sample image not found: {sample_path}")
+        else:
+            try:
+                sample_img = Image.open(sample_path)
+                st.image(sample_img, caption=f"Sample: {sample_choice}", use_column_width=True)
+                
+                # Convert PIL Image to file-like object for consistency with file_uploader
+                img_byte_arr = BytesIO()
+                sample_img.save(img_byte_arr, format='PNG')
+                img_byte_arr.seek(0)
+                uploaded_file = BytesIO(img_byte_arr.read())
+                uploaded_file.name = f"sample_{sample_name}.png"
+            except Exception as e:
+                st.warning(f"Could not load sample image: {str(e)}")
+                logging.exception(f"Error loading sample image {sample_path}")
     
     # File uploader
     st.markdown("### 📤 Or upload your own image")
@@ -212,13 +261,31 @@ def main():
                 if processed_img is not None:
                     # Get prediction
                     try:
+                        # Log prediction attempt
+                        logging.info("Making prediction with model")
+                        
+                        # Check if model is valid
+                        if model is None:
+                            st.error("❌ Model not loaded properly. Please check the error messages above.")
+                            return
+                        
                         prediction = model.predict(processed_img)
+                        logging.info(f"Raw prediction: {prediction}")
+                        
                         probabilities = model.predict_proba(processed_img)[0]
+                        logging.info(f"Probabilities: {probabilities}")
                         
                         # Get top 3 predictions
                         top3_indices = np.argsort(probabilities)[-3:][::-1]
-                        top3_classes = [idx_to_class[i] for i in top3_indices if i in idx_to_class]
-                        top3_probs = [probabilities[i] for i in top3_indices if i in idx_to_class]
+                        logging.info(f"Top 3 indices: {top3_indices}")
+                        
+                        # Filter valid indices that exist in idx_to_class
+                        valid_indices = [i for i in top3_indices if i in idx_to_class]
+                        if len(valid_indices) < len(top3_indices):
+                            logging.warning(f"Some prediction indices not found in class dictionary: {set(top3_indices) - set(valid_indices)}")
+                        
+                        top3_classes = [idx_to_class[i] for i in valid_indices]
+                        top3_probs = [probabilities[i] for i in valid_indices]
                         
                         # Display results
                         st.markdown("## 🎯 Prediction Results")

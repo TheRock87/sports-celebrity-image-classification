@@ -1,6 +1,17 @@
+# Core dependencies
 streamlit==1.32.0
 numpy==1.24.3
 Pillow==10.2.0
 opencv-python==4.9.0.80
 scikit-learn==1.4.0
 joblib==1.3.2
+
+# Streamlit dependencies (pinned to compatible versions)
+rich==14.0.0
+pygments==2.19.1
+markdown-it-py==3.0.0
+mdurl==0.1.2
+
+# Ensure compatible dependencies
+protobuf>=3.20.0,<4.0.0
+typing-extensions>=4.0.0
