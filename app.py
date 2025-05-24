@@ -225,7 +225,7 @@ def main():
             try:
                 # Display the uploaded image
                 image = Image.open(uploaded_file)
-                st.image(image, caption="Uploaded Image", use_column_width=True)
+                st.image(image, caption="Uploaded Image", use_container_width=True)
                 st.session_state.image = image
                 st.session_state.prediction_made = False
             except Exception as e:
@@ -241,7 +241,7 @@ def main():
         # Display sample images
         for i, (name, url) in enumerate(sample_images.items()):
             with cols[i]:
-                st.image(url, caption=name, width=150, use_column_width=False)
+                st.image(url, caption=name, width=150, use_container_width=False)
                 if st.button(f"Use {name}", key=f"sample_{i}"):
                     try:
                         response = requests.get(url)
@@ -256,7 +256,7 @@ def main():
     if st.session_state.image is not None and model_loaded:
         # Display the selected image if not already displayed
         if not st.session_state.prediction_made:
-            st.image(st.session_state.image, caption="Selected Image", use_column_width=True)
+            st.image(st.session_state.image, caption="Selected Image", use_container_width=True)
         
         # Make prediction when user clicks the button
         if st.button("Identify Celebrity"):
